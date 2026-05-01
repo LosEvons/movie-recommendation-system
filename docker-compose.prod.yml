@@ -1,0 +1,45 @@
+services:
+  chromadb:
+    image: chromadb/chroma:1.5.8
+    volumes:
+      - ./chroma_data:/chroma/chroma
+    healthcheck:
+      test: ["CMD", "python", "-c", "import sys, urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/api/v1/heartbeat'); sys.exit(0)"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - app-net
+    restart: unless-stopped
+
+  app:
+    image: nausteri/movie-recommendation-system:latest
+    ports:
+      - "7860:7860"
+    environment:
+      CHROMA_HOST: chromadb
+      CHROMA_PORT: 8000
+    depends_on:
+      chromadb:
+        condition: service_healthy
+      ingest:
+        condition: service_completed_successfully
+    networks:
+      - app-net
+    restart: unless-stopped
+
+  ingest:
+    image: nausteri/movie-recommendation-system:latest
+    command: ["python", "-m", "movie_recommender.ingest"]
+    environment:
+      CHROMA_HOST: chromadb
+      CHROMA_PORT: 8000
+    depends_on:
+      chromadb:
+        condition: service_healthy
+    networks:
+      - app-net
+
+networks:
+  app-net:
+    driver: bridge

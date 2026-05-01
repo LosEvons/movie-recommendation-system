@@ -1,0 +1,33 @@
+services:
+  chromadb:
+    image: chromadb/chroma:1.5.8
+    volumes:
+      - ./chroma_data:/chroma/chroma
+    ports:
+      - "8000:8000"
+    networks:
+      - app-net
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "/bin/bash", "-c", "</dev/tcp/localhost/8000"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  app:
+    build: .
+    ports:
+      - "7860:7860"
+    environment:
+      CHROMA_HOST: chromadb
+      CHROMA_PORT: 8000
+    depends_on:
+      chromadb:
+        condition: service_healthy
+    networks:
+      - app-net
+    restart: unless-stopped
+
+networks:
+  app-net:
+    driver: bridge
