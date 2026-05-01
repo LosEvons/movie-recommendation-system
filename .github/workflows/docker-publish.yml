@@ -54,7 +54,6 @@ jobs:
           load: true
           tags: ${{ env.IMAGE_NAME }}:ci-test
           cache-from: type=gha
-          cache-to: type=gha,mode=max
 
       - name: Run container
         run: |
@@ -109,4 +108,4 @@ jobs:
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
           cache-from: type=gha
-          cache-to: type=gha,mode=max
+          cache-to: type=gha,mode=min
