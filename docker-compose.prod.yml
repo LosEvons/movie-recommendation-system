@@ -22,9 +22,23 @@ services:
     depends_on:
       chromadb:
         condition: service_healthy
+      ingest:
+        condition: service_completed_successfully
     networks:
       - app-net
     restart: unless-stopped
+
+  ingest:
+    image: nausteri/movie-recommendation-system:latest
+    command: ["python", "-m", "movie_recommender.ingest"]
+    environment:
+      CHROMA_HOST: chromadb
+      CHROMA_PORT: 8000
+    depends_on:
+      chromadb:
+        condition: service_healthy
+    networks:
+      - app-net
 
 networks:
   app-net:

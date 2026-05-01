@@ -3,6 +3,10 @@ FROM python:3.12-slim AS builder
 COPY --from=ghcr.io/astral-sh/uv:0.11.8 /uv /bin/uv
 WORKDIR /app
 COPY pyproject.toml uv.lock ./
+
+# disable warning due to uv not being able to utilize hardlinks
+ENV UV_LINK_MODE=copy
+
 RUN --mount=type=cache,target=/root/.cache/uv \
     uv sync --frozen --no-dev
 ENV SENTENCE_TRANSFORMERS_HOME=/models

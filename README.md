@@ -10,13 +10,7 @@ A small semantic-search movie recommender built with Sentence Transformers, Chro
 docker compose -f docker-compose.prod.yml up -d
 ```
 
-2. Populate the movie database once:
-
-```powershell
-docker compose -f docker-compose.prod.yml run --rm app python -m movie_recommender.ingest
-```
-
-3. Open the UI:
+2. Open the UI:
 
 - http://localhost:7860
 
@@ -60,4 +54,3 @@ Published image:
 
 - If the database is empty, the UI shows a friendly message telling you to run ingest first.
 - Recommendations are returned as a simple list of movie titles.
-
