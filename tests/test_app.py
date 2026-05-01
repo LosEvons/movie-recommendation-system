@@ -1,14 +1,17 @@
 import logging
+import numpy as np
 from unittest.mock import MagicMock, patch
 
 from movie_recommender.app import _recommend_titles, recommend
 
 
-def _mock_embed(values: list) -> MagicMock:
-    """Return a mock whose .tolist() gives values, matching model.encode() output."""
-    m = MagicMock()
-    m.tolist.return_value = values
-    return m
+def _mock_embed_fn(values: list):
+    """Returns a callable for model.embed that yields numpy arrays, one per input."""
+
+    def _embed(texts, **kwargs):
+        return (np.array(v) for v in values)
+
+    return _embed
 
 
 # recommend
@@ -38,7 +41,7 @@ def test_recommend_query_error(caplog):
     mock_collection.query.side_effect = Exception("ChromaDB exploded")
 
     mock_model = MagicMock()
-    mock_model.encode.return_value = _mock_embed([[0.1]])
+    mock_model.embed.side_effect = _mock_embed_fn([[0.1]])
 
     with (
         caplog.at_level(logging.ERROR, logger="movie_recommender.app"),
@@ -68,7 +71,7 @@ def test_recommend_titles_returns_list():
     }
 
     mock_model = MagicMock()
-    mock_model.encode.return_value = _mock_embed([[0.1, 0.2, 0.3]])
+    mock_model.embed.side_effect = _mock_embed_fn([[0.1, 0.2, 0.3]])
 
     with (
         patch("movie_recommender.app.get_collection", return_value=mock_collection),
@@ -85,7 +88,7 @@ def test_recommend_titles_passes_top_k_to_query():
     mock_collection.query.return_value = {"metadatas": [[{"title": "A"}]]}
 
     mock_model = MagicMock()
-    mock_model.encode.return_value = _mock_embed([[0.1]])
+    mock_model.embed.side_effect = _mock_embed_fn([[0.1]])
 
     with (
         patch("movie_recommender.app.get_collection", return_value=mock_collection),
@@ -113,7 +116,7 @@ def test_recommend_titles_no_results_returns_empty():
     mock_collection.query.return_value = {"metadatas": [[]]}
 
     mock_model = MagicMock()
-    mock_model.encode.return_value = _mock_embed([[0.1, 0.2, 0.3]])
+    mock_model.embed.side_effect = _mock_embed_fn([[0.1, 0.2, 0.3]])
 
     with (
         patch("movie_recommender.app.get_collection", return_value=mock_collection),

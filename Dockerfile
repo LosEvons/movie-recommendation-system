@@ -9,9 +9,8 @@ ENV UV_LINK_MODE=copy
 
 RUN --mount=type=cache,target=/root/.cache/uv \
     uv sync --frozen --no-dev
-ENV SENTENCE_TRANSFORMERS_HOME=/models
-RUN --mount=type=cache,target=/root/.cache/huggingface \
-    uv run python -c "from sentence_transformers import SentenceTransformer; SentenceTransformer('all-MiniLM-L6-v2')"
+ENV FASTEMBED_CACHE_PATH=/models
+RUN uv run python -c "from fastembed import TextEmbedding; TextEmbedding('sentence-transformers/all-MiniLM-L6-v2')"
 
 # Runtime
 FROM python:3.12-slim AS runtime
@@ -21,7 +20,7 @@ COPY --from=builder /models /models
 ENV PATH="/app/venv/bin:$PATH" \
     PYTHONPATH="/app/src" \
     PYTHONUNBUFFERED=1 \
-    SENTENCE_TRANSFORMERS_HOME="/models"
+    FASTEMBED_CACHE_PATH="/models"
 
 COPY src ./src
 EXPOSE 7860
