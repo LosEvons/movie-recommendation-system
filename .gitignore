@@ -1,6 +1,12 @@
 .venv/
+venv/
 .idea/
 __pycache__/
 *.pyc
-
-
+chroma_data/
+models/
+.claude/
+CLAUDE.md
+AGENTS.md
+.env
+*.env
