@@ -8,6 +8,11 @@ services:
     networks:
       - app-net
     restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "/bin/bash", "-c", "</dev/tcp/localhost/8000"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
 
   app:
     build: .
@@ -17,7 +22,8 @@ services:
       CHROMA_HOST: chromadb
       CHROMA_PORT: 8000
     depends_on:
-      - chromadb
+      chromadb:
+        condition: service_healthy
     networks:
       - app-net
     restart: unless-stopped
