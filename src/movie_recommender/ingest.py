@@ -3,17 +3,17 @@ import logging
 
 import kagglehub
 import pandas as pd
-from sentence_transformers import SentenceTransformer
+from fastembed import TextEmbedding
 
 from movie_recommender.chroma import get_collection
 
 logger = logging.getLogger(__name__)
 
-MODEL_NAME = os.getenv("MODEL_NAME", "all-MiniLM-L6-v2")
+MODEL_NAME = os.getenv("MODEL_NAME", "sentence-transformers/all-MiniLM-L6-v2")
 TMDB_LIMIT = int(os.getenv("TMDB_LIMIT", "5000"))
 
-logger.info("Loading sentence transformer model %r", MODEL_NAME)
-model = SentenceTransformer(MODEL_NAME)
+logger.info("Loading embedding model %r", MODEL_NAME)
+model = TextEmbedding(MODEL_NAME)
 logger.info("Model ready")
 
 
@@ -60,12 +60,12 @@ def ingest_movies() -> None:
         raise
 
     logger.info("Encoding %s overviews with model %r", len(df), MODEL_NAME)
-    embeds = model.encode(df["overview"].tolist(), show_progress_bar=True)
+    embeds = list(model.embed(df["overview"].tolist()))
 
     logger.info("Writing to ChromaDB")
     try:
         collection.upsert(
-            embeddings=embeds.tolist(),
+            embeddings=[e.tolist() for e in embeds],
             documents=df["overview"].tolist(),
             metadatas=[
                 {"title": r["title"], "genre": str(r.get("genres", ""))}

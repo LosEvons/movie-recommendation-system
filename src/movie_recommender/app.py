@@ -2,16 +2,16 @@ import gradio as gr
 import logging
 import os
 
-from sentence_transformers import SentenceTransformer
+from fastembed import TextEmbedding
 
 from movie_recommender.chroma import get_collection
 
 logger = logging.getLogger(__name__)
 
-MODEL_NAME = os.getenv("MODEL_NAME", "all-MiniLM-L6-v2")
+MODEL_NAME = os.getenv("MODEL_NAME", "sentence-transformers/all-MiniLM-L6-v2")
 
-logger.info("Loading sentence transformer model %r", MODEL_NAME)
-model = SentenceTransformer(MODEL_NAME)
+logger.info("Loading embedding model %r", MODEL_NAME)
+model = TextEmbedding(MODEL_NAME)
 logger.info("Model ready")
 
 
@@ -27,7 +27,7 @@ def _recommend_titles(query: str, top_k: int = 5) -> list[str]:
     if collection.count() == 0:
         return []
 
-    q_embed = model.encode([query]).tolist()
+    q_embed = [next(model.embed([query])).tolist()]
     results = collection.query(
         query_embeddings=q_embed,
         n_results=top_k,

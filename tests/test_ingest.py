@@ -1,4 +1,5 @@
 import logging
+import numpy as np
 import os
 import tempfile
 from unittest.mock import MagicMock, patch
@@ -20,10 +21,13 @@ def _sample_df() -> pd.DataFrame:
     )
 
 
-def _mock_embed(values: list) -> MagicMock:
-    m = MagicMock()
-    m.tolist.return_value = values
-    return m
+def _mock_embed_fn(values: list):
+    """Returns a callable for model.embed that yields numpy arrays, one per input."""
+
+    def _embed(texts, **kwargs):
+        return (np.array(v) for v in values)
+
+    return _embed
 
 
 # find_csv_path
@@ -64,7 +68,6 @@ def test_find_csv_path_not_found():
 def test_ingest_movies_upserts_all_rows():
     df = _sample_df()
     mock_collection = MagicMock()
-    mock_embed = _mock_embed([[0.1] * 384, [0.2] * 384])
 
     with (
         patch(
@@ -78,7 +81,7 @@ def test_ingest_movies_upserts_all_rows():
         patch("movie_recommender.ingest.get_collection", return_value=mock_collection),
         patch("movie_recommender.ingest.model") as mock_model,
     ):
-        mock_model.encode.return_value = mock_embed
+        mock_model.embed.side_effect = _mock_embed_fn([[0.1] * 384, [0.2] * 384])
         ingest_movies()
 
     mock_collection.upsert.assert_called_once()
@@ -117,7 +120,6 @@ def test_ingest_movies_drops_rows_without_overview():
         }
     )
     mock_collection = MagicMock()
-    mock_embed = _mock_embed([[0.1] * 384, [0.2] * 384])
 
     with (
         patch(
@@ -131,7 +133,7 @@ def test_ingest_movies_drops_rows_without_overview():
         patch("movie_recommender.ingest.get_collection", return_value=mock_collection),
         patch("movie_recommender.ingest.model") as mock_model,
     ):
-        mock_model.encode.return_value = mock_embed
+        mock_model.embed.side_effect = _mock_embed_fn([[0.1] * 384, [0.2] * 384])
         ingest_movies()
 
     kwargs = mock_collection.upsert.call_args.kwargs
@@ -196,7 +198,6 @@ def test_ingest_movies_raises_on_upsert_failure(caplog):
     df = _sample_df()
     mock_collection = MagicMock()
     mock_collection.upsert.side_effect = Exception("ChromaDB write failed")
-    mock_embed = _mock_embed([[0.1] * 384, [0.2] * 384])
 
     with (
         caplog.at_level(logging.ERROR, logger="movie_recommender.ingest"),
@@ -211,7 +212,7 @@ def test_ingest_movies_raises_on_upsert_failure(caplog):
         patch("movie_recommender.ingest.get_collection", return_value=mock_collection),
         patch("movie_recommender.ingest.model") as mock_model,
     ):
-        mock_model.encode.return_value = mock_embed
+        mock_model.embed.side_effect = _mock_embed_fn([[0.1] * 384, [0.2] * 384])
         with pytest.raises(Exception, match="ChromaDB write failed"):
             ingest_movies()
 
