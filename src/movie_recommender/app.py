@@ -1,22 +1,18 @@
-import chromadb
 import gradio as gr
 import logging
 import os
-import time
 
 from sentence_transformers import SentenceTransformer
 
-logging.basicConfig(format="%(asctime)s : %(levelname)s : %(message)s", level=logging.INFO)
+from movie_recommender.chroma import get_collection
+
 logger = logging.getLogger(__name__)
 
 MODEL_NAME = os.getenv("MODEL_NAME", "all-MiniLM-L6-v2")
-CHROMA_HOST = os.getenv("CHROMA_HOST", "chromadb")
-CHROMA_PORT = int(os.getenv("CHROMA_PORT", "8000"))
-CHROMA_RETRIES = int(os.getenv("CHROMA_RETRIES", "10"))
-CHROMA_RETRY_DELAY = float(os.getenv("CHROMA_RETRY_DELAY", "2"))
 
+logger.info("Loading sentence transformer model %r", MODEL_NAME)
 model = SentenceTransformer(MODEL_NAME)
-_collection = None
+logger.info("Model ready")
 
 
 def _env_bool(value: str | None, default: bool = False) -> bool:
@@ -25,55 +21,43 @@ def _env_bool(value: str | None, default: bool = False) -> bool:
     return value.strip().lower() in {"1", "true", "yes", "y", "on"}
 
 
-def get_collection():
-    global _collection
-    if _collection is not None:
-        return _collection
+def _recommend_titles(query: str, top_k: int = 5) -> list[str]:
+    collection = get_collection()
 
-    last_error: Exception | None = None
-    for attempt in range(1, CHROMA_RETRIES + 1):
-        try:
-            client = chromadb.HttpClient(host=CHROMA_HOST, port=CHROMA_PORT)
-            _collection = client.get_or_create_collection(name="movies")
-            logger.info("Connected to ChromaDB at %s:%s", CHROMA_HOST, CHROMA_PORT)
-            return _collection
-        except Exception as exc:  # pragma: no cover - network/runtime dependent
-            last_error = exc
-            logger.warning(
-                "ChromaDB connection attempt %s/%s failed: %s",
-                attempt,
-                CHROMA_RETRIES,
-                exc,
-            )
-            if attempt < CHROMA_RETRIES:
-                time.sleep(CHROMA_RETRY_DELAY)
+    if collection.count() == 0:
+        return []
 
-    raise RuntimeError("Could not connect to ChromaDB") from last_error
+    q_embed = model.encode([query]).tolist()
+    results = collection.query(
+        query_embeddings=q_embed,
+        n_results=top_k,
+        include=["metadatas"],
+    )
+    metadatas = results.get("metadatas", [])
+    if not metadatas or not metadatas[0]:
+        return []
+
+    return [meta.get("title", "Unknown title") for meta in metadatas[0]]
+
 
 def recommend(query: str, top_k: int = 5) -> str:
     if not query.strip():
         return "Please enter a movie description first."
 
     try:
-        collection = get_collection()
-        if collection.count() == 0:
-            return "Run ingest first to populate the database"
-
-        q_embed = model.encode([query])
-        results = collection.query(
-            query_embeddings=q_embed,
-            n_results=top_k,
-            include=["metadatas"],
-        )
-        metadatas = results.get("metadatas", [])
-        if not metadatas or not metadatas[0]:
-            return "No recommendations were returned. Run ingest first or try a different query."
-
-        titles = [meta.get("title", "Unknown title") for meta in metadatas[0]]
-        return "Recommendations:\n" + "\n".join(f"- {title}" for title in titles)
+        titles = _recommend_titles(query, top_k)
+    except RuntimeError:
+        logger.error("ChromaDB unreachable; cannot serve recommendation request")
+        return "The recommendation service is currently unavailable. Please try again later."
     except Exception:
-        logger.exception("Recommendation lookup failed")
+        logger.exception("Recommendation query failed for query %r", query)
         return "Something went wrong while looking up recommendations. Please try again."
+
+    if not titles:
+        return "No recommendations found. The database may be empty or the query too specific."
+
+    return "Recommendations:\n" + "\n".join(f"- {title}" for title in titles)
+
 
 demo = gr.Interface(
     fn=recommend,
@@ -91,12 +75,19 @@ demo = gr.Interface(
 )
 
 if __name__ == "__main__":
+    import sys
+    logging.basicConfig(format="%(asctime)s : %(levelname)s : %(message)s", level=logging.INFO)
+
     server_name = os.getenv("GRADIO_SERVER_NAME", "0.0.0.0")
     server_port = int(os.getenv("GRADIO_SERVER_PORT", "7860"))
     share = _env_bool(os.getenv("GRADIO_SHARE"), default=False)
 
-    demo.launch(
-        server_name=server_name,
-        server_port=server_port,
-        share=share,
-    )
+    try:
+        demo.launch(
+            server_name=server_name,
+            server_port=server_port,
+            share=share,
+        )
+    except Exception:
+        logger.exception("Failed to launch Gradio app")
+        sys.exit(1)

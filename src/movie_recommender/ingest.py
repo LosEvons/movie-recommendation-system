@@ -1,90 +1,91 @@
 import os
 import logging
-import time
 
 import kagglehub
 import pandas as pd
-import chromadb
 from sentence_transformers import SentenceTransformer
 
-logging.basicConfig(format="%(asctime)s : %(levelname)s : %(message)s", level=logging.INFO)
+from movie_recommender.chroma import get_collection
+
 logger = logging.getLogger(__name__)
 
 MODEL_NAME = os.getenv("MODEL_NAME", "all-MiniLM-L6-v2")
-CHROMA_HOST = os.getenv("CHROMA_HOST", "chromadb")
-CHROMA_PORT = int(os.getenv("CHROMA_PORT", "8000"))
-CHROMA_RETRIES = int(os.getenv("CHROMA_RETRIES", "10"))
-CHROMA_RETRY_DELAY = float(os.getenv("CHROMA_RETRY_DELAY", "2"))
 TMDB_LIMIT = int(os.getenv("TMDB_LIMIT", "5000"))
 
+logger.info("Loading sentence transformer model %r", MODEL_NAME)
 model = SentenceTransformer(MODEL_NAME)
-
-
-def get_collection():
-    last_error: Exception | None = None
-    for attempt in range(1, CHROMA_RETRIES + 1):
-        try:
-            client = chromadb.HttpClient(host=CHROMA_HOST, port=CHROMA_PORT)
-            collection = client.get_or_create_collection(name="movies")
-            logger.info("Connected to ChromaDB at %s:%s", CHROMA_HOST, CHROMA_PORT)
-            return collection
-        except Exception as exc:  # pragma: no cover - network/runtime dependent
-            last_error = exc
-            logger.warning(
-                "ChromaDB connection attempt %s/%s failed: %s",
-                attempt,
-                CHROMA_RETRIES,
-                exc,
-            )
-            if attempt < CHROMA_RETRIES:
-                time.sleep(CHROMA_RETRY_DELAY)
-
-    raise RuntimeError("Could not connect to ChromaDB") from last_error
+logger.info("Model ready")
 
 
 def find_csv_path(dataset_path: str) -> str:
-    for file_name in os.listdir(dataset_path):
+    for file_name in sorted(os.listdir(dataset_path)):
         if "movie" in file_name.lower() and file_name.endswith(".csv"):
             return os.path.join(dataset_path, file_name)
-    raise FileNotFoundError("Could not find a movie CSV file in the downloaded dataset")
+    raise FileNotFoundError(f"No movie CSV found in dataset at {dataset_path!r}")
 
 
 def ingest_movies() -> None:
     logger.info("Downloading TMDB dataset")
-    path = kagglehub.dataset_download("tmdb/tmdb-movie-metadata")
-    csv_path = find_csv_path(path)
+    try:
+        path = kagglehub.dataset_download("tmdb/tmdb-movie-metadata")
+    except Exception as exc:
+        logger.error("Dataset download failed: %s", exc)
+        raise
 
-    df = pd.read_csv(csv_path)
+    try:
+        csv_path = find_csv_path(path)
+    except FileNotFoundError:
+        logger.error("No movie CSV found in downloaded dataset at %r", path)
+        raise
+
+    logger.info("Loading dataset from %s", csv_path)
+    try:
+        df = pd.read_csv(csv_path)
+    except Exception as exc:
+        logger.error("Failed to read CSV at %r: %s", csv_path, exc)
+        raise
+
     df = df.dropna(subset=["overview"]).head(TMDB_LIMIT)
     df["id_str"] = df["id"].astype(str)
     logger.info("Loaded %s rows", len(df))
 
     if df.empty:
-        logger.warning("No rows with non-empty overview were found; skipping ingestion")
+        logger.warning("No rows with non-empty overview; skipping ingestion")
         return
 
-    collection = get_collection()
+    try:
+        collection = get_collection()
+    except RuntimeError:
+        logger.error("ChromaDB unavailable; aborting ingestion")
+        raise
 
-    if collection.count() == 0:
-        logger.info("Creating embeddings")
-        embeds = model.encode(df["overview"].tolist())
+    logger.info("Encoding %s overviews with model %r", len(df), MODEL_NAME)
+    embeds = model.encode(df["overview"].tolist(), show_progress_bar=True)
 
-        collection.add(
+    logger.info("Writing to ChromaDB")
+    try:
+        collection.upsert(
             embeddings=embeds.tolist(),
             documents=df["overview"].tolist(),
             metadatas=[
-                {
-                    "title": row["title"],
-                    "genre": str(row.get("genres", "")),
-                }
-                for _, row in df.iterrows()
+                {"title": r["title"], "genre": str(r.get("genres", ""))}
+                for r in df.to_dict("records")
             ],
             ids=df["id_str"].tolist(),
         )
-        logger.info("Ingested %s movies", collection.count())
-    else:
-        logger.info("Pre-existing %s movies", collection.count())
+    except Exception as exc:
+        logger.error("ChromaDB upsert failed after encoding %s movies: %s", len(df), exc)
+        raise
+
+    logger.info("Upserted %s movies", len(df))
 
 
 if __name__ == "__main__":
-    ingest_movies()
+    import sys
+    logging.basicConfig(format="%(asctime)s : %(levelname)s : %(message)s", level=logging.INFO)
+
+    try:
+        ingest_movies()
+    except Exception:
+        logger.exception("Ingestion failed")
+        sys.exit(1)

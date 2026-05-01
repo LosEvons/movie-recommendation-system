@@ -12,6 +12,11 @@ dependencies = [
     "sentence-transformers>=5.4.1",
 ]
 
+[tool.pytest.ini_options]
+pythonpath = ["src"]
+log_cli = true
+log_level = "INFO"
+
 [dependency-groups]
 dev = [
     "pytest>=9.0.3",
