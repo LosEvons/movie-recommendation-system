@@ -10,12 +10,14 @@ from movie_recommender.ingest import find_csv_path, ingest_movies
 
 
 def _sample_df() -> pd.DataFrame:
-    return pd.DataFrame({
-        "id": [1, 2],
-        "title": ["Movie A", "Movie B"],
-        "overview": ["An adventure story.", "A romance story."],
-        "genres": ["Action", "Romance"],
-    })
+    return pd.DataFrame(
+        {
+            "id": [1, 2],
+            "title": ["Movie A", "Movie B"],
+            "overview": ["An adventure story.", "A romance story."],
+            "genres": ["Action", "Romance"],
+        }
+    )
 
 
 def _mock_embed(values: list) -> MagicMock:
@@ -25,6 +27,7 @@ def _mock_embed(values: list) -> MagicMock:
 
 
 # find_csv_path
+
 
 def test_find_csv_path_found():
     with tempfile.TemporaryDirectory() as tmpdir:
@@ -57,16 +60,24 @@ def test_find_csv_path_not_found():
 
 # ingest_movies
 
+
 def test_ingest_movies_upserts_all_rows():
     df = _sample_df()
     mock_collection = MagicMock()
     mock_embed = _mock_embed([[0.1] * 384, [0.2] * 384])
 
-    with patch("movie_recommender.ingest.kagglehub.dataset_download", return_value="/fake/path"), \
-         patch("movie_recommender.ingest.find_csv_path", return_value="/fake/movies.csv"), \
-         patch("movie_recommender.ingest.pd.read_csv", return_value=df), \
-         patch("movie_recommender.ingest.get_collection", return_value=mock_collection), \
-         patch("movie_recommender.ingest.model") as mock_model:
+    with (
+        patch(
+            "movie_recommender.ingest.kagglehub.dataset_download",
+            return_value="/fake/path",
+        ),
+        patch(
+            "movie_recommender.ingest.find_csv_path", return_value="/fake/movies.csv"
+        ),
+        patch("movie_recommender.ingest.pd.read_csv", return_value=df),
+        patch("movie_recommender.ingest.get_collection", return_value=mock_collection),
+        patch("movie_recommender.ingest.model") as mock_model,
+    ):
         mock_model.encode.return_value = mock_embed
         ingest_movies()
 
@@ -80,30 +91,46 @@ def test_ingest_movies_upserts_all_rows():
 def test_ingest_movies_skips_when_no_overviews():
     df = pd.DataFrame(columns=["id", "title", "overview", "genres"])
 
-    with patch("movie_recommender.ingest.kagglehub.dataset_download", return_value="/fake/path"), \
-         patch("movie_recommender.ingest.find_csv_path", return_value="/fake/movies.csv"), \
-         patch("movie_recommender.ingest.pd.read_csv", return_value=df), \
-         patch("movie_recommender.ingest.get_collection") as mock_get_collection:
+    with (
+        patch(
+            "movie_recommender.ingest.kagglehub.dataset_download",
+            return_value="/fake/path",
+        ),
+        patch(
+            "movie_recommender.ingest.find_csv_path", return_value="/fake/movies.csv"
+        ),
+        patch("movie_recommender.ingest.pd.read_csv", return_value=df),
+        patch("movie_recommender.ingest.get_collection") as mock_get_collection,
+    ):
         ingest_movies()
 
     mock_get_collection.assert_not_called()
 
 
 def test_ingest_movies_drops_rows_without_overview():
-    df = pd.DataFrame({
-        "id": [1, 2, 3],
-        "title": ["Has Overview", "No Overview", "Also Has"],
-        "overview": ["Some text.", None, "More text."],
-        "genres": ["Action", "Drama", "Comedy"],
-    })
+    df = pd.DataFrame(
+        {
+            "id": [1, 2, 3],
+            "title": ["Has Overview", "No Overview", "Also Has"],
+            "overview": ["Some text.", None, "More text."],
+            "genres": ["Action", "Drama", "Comedy"],
+        }
+    )
     mock_collection = MagicMock()
     mock_embed = _mock_embed([[0.1] * 384, [0.2] * 384])
 
-    with patch("movie_recommender.ingest.kagglehub.dataset_download", return_value="/fake/path"), \
-         patch("movie_recommender.ingest.find_csv_path", return_value="/fake/movies.csv"), \
-         patch("movie_recommender.ingest.pd.read_csv", return_value=df), \
-         patch("movie_recommender.ingest.get_collection", return_value=mock_collection), \
-         patch("movie_recommender.ingest.model") as mock_model:
+    with (
+        patch(
+            "movie_recommender.ingest.kagglehub.dataset_download",
+            return_value="/fake/path",
+        ),
+        patch(
+            "movie_recommender.ingest.find_csv_path", return_value="/fake/movies.csv"
+        ),
+        patch("movie_recommender.ingest.pd.read_csv", return_value=df),
+        patch("movie_recommender.ingest.get_collection", return_value=mock_collection),
+        patch("movie_recommender.ingest.model") as mock_model,
+    ):
         mock_model.encode.return_value = mock_embed
         ingest_movies()
 
@@ -113,9 +140,13 @@ def test_ingest_movies_drops_rows_without_overview():
 
 
 def test_ingest_movies_raises_on_download_failure(caplog):
-    with caplog.at_level(logging.ERROR, logger="movie_recommender.ingest"), \
-         patch("movie_recommender.ingest.kagglehub.dataset_download",
-               side_effect=RuntimeError("network error")):
+    with (
+        caplog.at_level(logging.ERROR, logger="movie_recommender.ingest"),
+        patch(
+            "movie_recommender.ingest.kagglehub.dataset_download",
+            side_effect=RuntimeError("network error"),
+        ),
+    ):
         with pytest.raises(RuntimeError, match="network error"):
             ingest_movies()
 
@@ -123,9 +154,16 @@ def test_ingest_movies_raises_on_download_failure(caplog):
 
 
 def test_ingest_movies_raises_on_csv_not_found():
-    with patch("movie_recommender.ingest.kagglehub.dataset_download", return_value="/fake/path"), \
-         patch("movie_recommender.ingest.find_csv_path",
-               side_effect=FileNotFoundError("no csv")):
+    with (
+        patch(
+            "movie_recommender.ingest.kagglehub.dataset_download",
+            return_value="/fake/path",
+        ),
+        patch(
+            "movie_recommender.ingest.find_csv_path",
+            side_effect=FileNotFoundError("no csv"),
+        ),
+    ):
         with pytest.raises(FileNotFoundError):
             ingest_movies()
 
@@ -133,11 +171,21 @@ def test_ingest_movies_raises_on_csv_not_found():
 def test_ingest_movies_raises_on_connection_failure(caplog):
     df = _sample_df()
 
-    with caplog.at_level(logging.ERROR, logger="movie_recommender.ingest"), \
-         patch("movie_recommender.ingest.kagglehub.dataset_download", return_value="/fake/path"), \
-         patch("movie_recommender.ingest.find_csv_path", return_value="/fake/movies.csv"), \
-         patch("movie_recommender.ingest.pd.read_csv", return_value=df), \
-         patch("movie_recommender.ingest.get_collection", side_effect=RuntimeError("refused")):
+    with (
+        caplog.at_level(logging.ERROR, logger="movie_recommender.ingest"),
+        patch(
+            "movie_recommender.ingest.kagglehub.dataset_download",
+            return_value="/fake/path",
+        ),
+        patch(
+            "movie_recommender.ingest.find_csv_path", return_value="/fake/movies.csv"
+        ),
+        patch("movie_recommender.ingest.pd.read_csv", return_value=df),
+        patch(
+            "movie_recommender.ingest.get_collection",
+            side_effect=RuntimeError("refused"),
+        ),
+    ):
         with pytest.raises(RuntimeError):
             ingest_movies()
 
@@ -150,12 +198,19 @@ def test_ingest_movies_raises_on_upsert_failure(caplog):
     mock_collection.upsert.side_effect = Exception("ChromaDB write failed")
     mock_embed = _mock_embed([[0.1] * 384, [0.2] * 384])
 
-    with caplog.at_level(logging.ERROR, logger="movie_recommender.ingest"), \
-         patch("movie_recommender.ingest.kagglehub.dataset_download", return_value="/fake/path"), \
-         patch("movie_recommender.ingest.find_csv_path", return_value="/fake/movies.csv"), \
-         patch("movie_recommender.ingest.pd.read_csv", return_value=df), \
-         patch("movie_recommender.ingest.get_collection", return_value=mock_collection), \
-         patch("movie_recommender.ingest.model") as mock_model:
+    with (
+        caplog.at_level(logging.ERROR, logger="movie_recommender.ingest"),
+        patch(
+            "movie_recommender.ingest.kagglehub.dataset_download",
+            return_value="/fake/path",
+        ),
+        patch(
+            "movie_recommender.ingest.find_csv_path", return_value="/fake/movies.csv"
+        ),
+        patch("movie_recommender.ingest.pd.read_csv", return_value=df),
+        patch("movie_recommender.ingest.get_collection", return_value=mock_collection),
+        patch("movie_recommender.ingest.model") as mock_model,
+    ):
         mock_model.encode.return_value = mock_embed
         with pytest.raises(Exception, match="ChromaDB write failed"):
             ingest_movies()

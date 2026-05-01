@@ -74,7 +74,9 @@ def ingest_movies() -> None:
             ids=df["id_str"].tolist(),
         )
     except Exception as exc:
-        logger.error("ChromaDB upsert failed after encoding %s movies: %s", len(df), exc)
+        logger.error(
+            "ChromaDB upsert failed after encoding %s movies: %s", len(df), exc
+        )
         raise
 
     logger.info("Upserted %s movies", len(df))
@@ -82,7 +84,10 @@ def ingest_movies() -> None:
 
 if __name__ == "__main__":
     import sys
-    logging.basicConfig(format="%(asctime)s : %(levelname)s : %(message)s", level=logging.INFO)
+
+    logging.basicConfig(
+        format="%(asctime)s : %(levelname)s : %(message)s", level=logging.INFO
+    )
 
     try:
         ingest_movies()

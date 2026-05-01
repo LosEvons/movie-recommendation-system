@@ -51,7 +51,9 @@ def recommend(query: str, top_k: int = 5) -> str:
         return "The recommendation service is currently unavailable. Please try again later."
     except Exception:
         logger.exception("Recommendation query failed for query %r", query)
-        return "Something went wrong while looking up recommendations. Please try again."
+        return (
+            "Something went wrong while looking up recommendations. Please try again."
+        )
 
     if not titles:
         return "No recommendations found. The database may be empty or the query too specific."
@@ -62,12 +64,8 @@ def recommend(query: str, top_k: int = 5) -> str:
 demo = gr.Interface(
     fn=recommend,
     inputs=[
-        gr.Textbox(
-            label="Description",
-            placeholder="placeholder",
-            lines=2
-        ),
-        gr.Slider(3, 10, value=5, step=1, label="Count")
+        gr.Textbox(label="Description", placeholder="placeholder", lines=2),
+        gr.Slider(3, 10, value=5, step=1, label="Count"),
     ],
     outputs=gr.Textbox(label="Movies", lines=8),
     title="Movie Recommendation System",
@@ -76,7 +74,10 @@ demo = gr.Interface(
 
 if __name__ == "__main__":
     import sys
-    logging.basicConfig(format="%(asctime)s : %(levelname)s : %(message)s", level=logging.INFO)
+
+    logging.basicConfig(
+        format="%(asctime)s : %(levelname)s : %(message)s", level=logging.INFO
+    )
 
     server_name = os.getenv("GRADIO_SERVER_NAME", "0.0.0.0")
     server_port = int(os.getenv("GRADIO_SERVER_PORT", "7860"))

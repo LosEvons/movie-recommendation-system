@@ -22,6 +22,7 @@ def _mock_client(collection: MagicMock | None = None) -> MagicMock:
 
 # success paths
 
+
 def test_get_collection_connects_and_returns_collection():
     mock_collection = MagicMock()
     client = _mock_client(mock_collection)
@@ -47,6 +48,7 @@ def test_get_collection_caches_on_second_call():
 
 # retry paths
 
+
 def test_get_collection_retries_on_transient_failure():
     mock_collection = MagicMock()
     client = MagicMock()
@@ -55,9 +57,11 @@ def test_get_collection_retries_on_transient_failure():
         mock_collection,
     ]
 
-    with patch("movie_recommender.chroma.chromadb.HttpClient", return_value=client), \
-         patch("movie_recommender.chroma.time.sleep") as mock_sleep, \
-         patch.object(chroma_module, "CHROMA_RETRIES", 3):
+    with (
+        patch("movie_recommender.chroma.chromadb.HttpClient", return_value=client),
+        patch("movie_recommender.chroma.time.sleep") as mock_sleep,
+        patch.object(chroma_module, "CHROMA_RETRIES", 3),
+    ):
         result = get_collection()
 
     assert result is mock_collection
@@ -72,9 +76,11 @@ def test_get_collection_sleeps_between_retries():
         MagicMock(),
     ]
 
-    with patch("movie_recommender.chroma.chromadb.HttpClient", return_value=client), \
-         patch("movie_recommender.chroma.time.sleep") as mock_sleep, \
-         patch.object(chroma_module, "CHROMA_RETRIES", 3):
+    with (
+        patch("movie_recommender.chroma.chromadb.HttpClient", return_value=client),
+        patch("movie_recommender.chroma.time.sleep") as mock_sleep,
+        patch.object(chroma_module, "CHROMA_RETRIES", 3),
+    ):
         get_collection()
 
     assert mock_sleep.call_count == 2
@@ -84,9 +90,11 @@ def test_get_collection_no_sleep_after_last_attempt():
     client = MagicMock()
     client.get_or_create_collection.side_effect = ConnectionError("refused")
 
-    with patch("movie_recommender.chroma.chromadb.HttpClient", return_value=client), \
-         patch("movie_recommender.chroma.time.sleep") as mock_sleep, \
-         patch.object(chroma_module, "CHROMA_RETRIES", 2):
+    with (
+        patch("movie_recommender.chroma.chromadb.HttpClient", return_value=client),
+        patch("movie_recommender.chroma.time.sleep") as mock_sleep,
+        patch.object(chroma_module, "CHROMA_RETRIES", 2),
+    ):
         with pytest.raises(RuntimeError):
             get_collection()
 
@@ -98,9 +106,11 @@ def test_get_collection_raises_runtime_error_after_all_retries():
     client = MagicMock()
     client.get_or_create_collection.side_effect = ConnectionError("refused")
 
-    with patch("movie_recommender.chroma.chromadb.HttpClient", return_value=client), \
-         patch("movie_recommender.chroma.time.sleep"), \
-         patch.object(chroma_module, "CHROMA_RETRIES", 2):
+    with (
+        patch("movie_recommender.chroma.chromadb.HttpClient", return_value=client),
+        patch("movie_recommender.chroma.time.sleep"),
+        patch.object(chroma_module, "CHROMA_RETRIES", 2),
+    ):
         with pytest.raises(RuntimeError, match="Could not connect to ChromaDB"):
             get_collection()
 
@@ -112,9 +122,11 @@ def test_get_collection_original_error_chained():
     client = MagicMock()
     client.get_or_create_collection.side_effect = original
 
-    with patch("movie_recommender.chroma.chromadb.HttpClient", return_value=client), \
-         patch("movie_recommender.chroma.time.sleep"), \
-         patch.object(chroma_module, "CHROMA_RETRIES", 1):
+    with (
+        patch("movie_recommender.chroma.chromadb.HttpClient", return_value=client),
+        patch("movie_recommender.chroma.time.sleep"),
+        patch.object(chroma_module, "CHROMA_RETRIES", 1),
+    ):
         with pytest.raises(RuntimeError) as exc_info:
             get_collection()
 
