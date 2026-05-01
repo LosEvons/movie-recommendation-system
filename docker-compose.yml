@@ -5,11 +5,6 @@ services:
       - ./chroma_data:/chroma/chroma
     ports:
       - "8000:8000"
-    healthcheck:
-      test: ["CMD", "python", "-c", "import sys, urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/api/v1/heartbeat'); sys.exit(0)"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
     networks:
       - app-net
     restart: unless-stopped
@@ -22,8 +17,7 @@ services:
       CHROMA_HOST: chromadb
       CHROMA_PORT: 8000
     depends_on:
-      chromadb:
-        condition: service_healthy
+      - chromadb
     networks:
       - app-net
     restart: unless-stopped
